@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py main.py
 COPY auth.py auth.py
+COPY database.py database.py
 COPY index.html index.html
 COPY start.sh start.sh
 RUN chmod +x start.sh
