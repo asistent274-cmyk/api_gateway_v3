@@ -60,9 +60,20 @@ async def _call_ollama(message: str, client: httpx.AsyncClient) -> str:
 def signup(req: SignupRequest):
     """
     Legt einen neuen Nutzer mit Free-Tarif an und gibt seinen API-Key zurueck.
-    Der Key wird nur bei der Erstellung angezeigt -- der Nutzer muss ihn sich merken.
+    Ausnahme: die als OWNER_EMAIL hinterlegte Adresse wird beim Serverstart
+    automatisch angelegt -- ruft der Owner /signup mit genau dieser E-Mail auf,
+    bekommt er stattdessen seinen bereits bestehenden Key zurueck.
     """
-    if get_user_by_email(req.email):
+    existing = get_user_by_email(req.email)
+    if existing:
+        owner_email = os.environ.get("OWNER_EMAIL")
+        if owner_email and req.email == owner_email and existing["tier"] == "owner":
+            return {
+                "email": existing["email"],
+                "api_key": existing["api_key"],
+                "tier": existing["tier"],
+                "daily_limit": TIER_LIMITS[existing["tier"]],
+            }
         raise HTTPException(status_code=400, detail="E-Mail bereits registriert")
     user = create_user(req.email, tier="free")
     return {
