@@ -1,17 +1,35 @@
 import os
 import httpx
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from auth import check_api_key
+from database import init_db, get_user_by_email, create_user, set_tier, TIER_LIMITS
 
 app = FastAPI(title="Mein Chatbot API Gateway")
+
+
+@app.on_event("startup")
+def startup():
+    init_db()
+    owner_email = os.environ.get("OWNER_EMAIL")
+    if owner_email and not get_user_by_email(owner_email):
+        create_user(owner_email, tier="owner")
 
 
 # --- Schemas ---
 class ChatRequest(BaseModel):
     message: str
+
+
+class SignupRequest(BaseModel):
+    email: str
+
+
+class SetTierRequest(BaseModel):
+    email: str
+    tier: str  # "free" | "plus" | "pro"
 
 
 # --- Ollama-Aufruf (selbstgehostetes Modell, laeuft im selben Render-Dienst) ---
@@ -38,17 +56,59 @@ async def _call_ollama(message: str, client: httpx.AsyncClient) -> str:
     return data.get("message", {}).get("content", "")
 
 
+@app.post("/signup")
+def signup(req: SignupRequest):
+    """
+    Legt einen neuen Nutzer mit Free-Tarif an und gibt seinen API-Key zurueck.
+    Der Key wird nur bei der Erstellung angezeigt -- der Nutzer muss ihn sich merken.
+    """
+    if get_user_by_email(req.email):
+        raise HTTPException(status_code=400, detail="E-Mail bereits registriert")
+    user = create_user(req.email, tier="free")
+    return {
+        "email": user["email"],
+        "api_key": user["api_key"],
+        "tier": user["tier"],
+        "daily_limit": TIER_LIMITS[user["tier"]],
+    }
+
+
+@app.post("/admin/set-tier")
+def admin_set_tier(req: SetTierRequest, x_admin_key: str = Header(..., alias="X-Admin-Key")):
+    """
+    Setzt den Tarif eines Nutzers manuell (spaeter durch Stripe-Webhook ersetzbar).
+    Geschuetzt durch einen separaten Admin-Key (Umgebungsvariable ADMIN_KEY).
+    """
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or x_admin_key != admin_key:
+        raise HTTPException(status_code=401, detail="Ungueltiger Admin-Key")
+    if not get_user_by_email(req.email):
+        raise HTTPException(status_code=404, detail="Nutzer nicht gefunden")
+    try:
+        set_tier(req.email, req.tier)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"email": req.email, "new_tier": req.tier}
+
+
 @app.get("/me")
-def me(key: dict = Depends(check_api_key)):
-    """Einfacher Check, ob der Key gueltig ist."""
-    return {"status": "ok", "note": "Key ist gueltig."}
+def me(user: dict = Depends(check_api_key)):
+    """Zeigt Tarif und verbleibende Anfragen des eigenen Keys."""
+    limit = TIER_LIMITS.get(user["tier"])
+    return {
+        "email": user["email"],
+        "tier": user["tier"],
+        "requests_used": user["requests_used"],
+        "daily_limit": limit,
+        "remaining": None if limit is None else max(0, limit - user["requests_used"]),
+    }
 
 
 @app.post("/chat")
-async def chat(req: ChatRequest, key: dict = Depends(check_api_key)):
+async def chat(req: ChatRequest, user: dict = Depends(check_api_key)):
     """
-    Nimmt eine Chat-Anfrage entgegen, prueft deinen Key und leitet sie an das
-    selbstgehostete Ollama-Modell weiter -- kein externer Anbieter beteiligt.
+    Nimmt eine Chat-Anfrage entgegen, prueft deinen Key + Tarif-Limit und leitet
+    sie an das selbstgehostete Ollama-Modell weiter -- kein externer Anbieter beteiligt.
     """
     async with httpx.AsyncClient(timeout=120.0) as client:
         try:
@@ -65,3 +125,4 @@ async def chat(req: ChatRequest, key: dict = Depends(check_api_key)):
 @app.get("/")
 def root():
     return FileResponse("index.html")
+    
