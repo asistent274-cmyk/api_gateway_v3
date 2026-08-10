@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mein Chatbot API Gateway</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 480px; margin: 24px auto; padding: 0 16px; background: #111; color: #eee; }
+  h1 { font-size: 1.3rem; }
+  input, button { width: 100%; padding: 10px; margin: 6px 0; font-size: 1rem; box-sizing: border-box; border-radius: 6px; border: 1px solid #444; }
+  input { background: #222; color: #eee; }
+  button { background: #4a7dff; color: white; border: none; cursor: pointer; }
+  .key-card { background: #1e1e1e; padding: 12px; border-radius: 8px; margin: 10px 0; }
+  .key-value { font-family: monospace; font-size: 0.85rem; word-break: break-all; background: #000; padding: 6px; border-radius: 4px; margin: 6px 0; }
+  .label { font-weight: bold; }
+  .plan-owner { color: #4caf50; }
+  small { color: #999; }
+</style>
+</head>
+<body>
+  <h1>🔑 Mein Chatbot API Gateway</h1>
+
+  <div id="login-section">
+    <p>Mit E-Mail anmelden, um deine Keys zu sehen:</p>
+    <input id="email-input" type="email" placeholder="deine-email@example.com">
+    <button onclick="login()">Anmelden</button>
+    <p><small>Neu hier? Trag deine E-Mail ein und klick unten auf "Neuen Key anlegen" -- der Account wird automatisch erstellt.</small></p>
+  </div>
+
+  <div id="keys-section" style="display:none;">
+    <p>Angemeldet als <b id="current-email"></b> (<span id="current-plan"></span>)</p>
+    <div id="keys-list"></div>
+
+    <h3>Neuen Key anlegen</h3>
+    <input id="label-input" type="text" placeholder="Name, z.B. Mira, Lena, Testprojekt">
+    <button onclick="createKey()">Neuen Key anlegen</button>
+
+    <p style="margin-top:20px;"><button onclick="logout()" style="background:#444;">Abmelden</button></p>
+  </div>
+
+  <script>
+    let currentEmail = null;
+
+    async function login() {
+      const email = document.getElementById('email-input').value.trim().toLowerCase();
+      if (!email) return;
+      currentEmail = email;
+      await refreshKeys();
+    }
+
+    async function refreshKeys() {
+      try {
+        const res = await fetch('/account/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({email: currentEmail})
+        });
+        if (!res.ok) {
+          if (res.status === 404) {
+            alert('Noch keine Keys für diese E-Mail. Leg unten einen neuen an.');
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('keys-section').style.display = 'block';
+            document.getElementById('current-email').textContent = currentEmail;
+            document.getElementById('current-plan').textContent = '';
+            document.getElementById('keys-list').innerHTML = '<p><small>Noch keine Keys.</small></p>';
+            return;
+          }
+          throw new Error('Fehler beim Laden');
+        }
+        const data = await res.json();
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('keys-section').style.display = 'block';
+        document.getElementById('current-email').textContent = data.email;
+        document.getElementById('current-plan').textContent = data.account_plan === 'owner' ? 'Owner - unlimitiert' : data.account_plan;
+        document.getElementById('current-plan').className = data.account_plan === 'owner' ? 'plan-owner' : '';
+
+        const list = document.getElementById('keys-list');
+        list.innerHTML = data.keys.map(k => `
+          <div class="key-card">
+            <div class="label">${k.label}</div>
+            <div class="key-value">${k.api_key}</div>
+            <small>${k.requests_limit === null ? 'Unlimitiert' : k.requests_used + ' / ' + k.requests_limit + ' Anfragen genutzt'}</small><br>
+            <button onclick="regenerate(${k.key_id})" style="margin-top:6px;background:#c65a00;">Key neu erzeugen</button>
+          </div>
+        `).join('') || '<p><small>Noch keine Keys.</small></p>';
+      } catch (e) {
+        alert('Fehler: ' + e.message);
+      }
+    }
+
+    async function createKey() {
+      const label = document.getElementById('label-input').value.trim() || 'Mein Key';
+      const res = await fetch('/account/keys', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: currentEmail, label: label})
+      });
+      if (!res.ok) { alert('Fehler beim Anlegen'); return; }
+      document.getElementById('label-input').value = '';
+      await refreshKeys();
+    }
+
+    async function regenerate(keyId) {
+      if (!confirm('Alten Key wirklich ersetzen? Der alte funktioniert danach nicht mehr.')) return;
+      const res = await fetch('/admin/regenerate_key', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: currentEmail, key_id: keyId})
+      });
+      if (!res.ok) { alert('Fehler'); return; }
+      await refreshKeys();
+    }
+
+    function logout() {
+      currentEmail = null;
+      document.getElementById('login-section').style.display = 'block';
+      document.getElementById('keys-section').style.display = 'none';
+      document.getElementById('email-input').value = '';
+    }
+  </script>
+</body>
+</html>
