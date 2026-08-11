@@ -1,99 +1,266 @@
-      <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mein Chatbot API Gateway</title>
+<title>API Gateway</title>
 <style>
-  body { font-family: -apple-system, sans-serif; max-width: 480px; margin: 24px auto; padding: 0 16px; background: #111; color: #eee; }
-  h1 { font-size: 1.3rem; }
-  input, button { width: 100%; padding: 10px; margin: 6px 0; font-size: 1rem; box-sizing: border-box; border-radius: 6px; border: 1px solid #444; }
-  input { background: #222; color: #eee; }
-  button { background: #4a7dff; color: white; border: none; cursor: pointer; }
-  .key-card { background: #1e1e1e; padding: 12px; border-radius: 8px; margin: 10px 0; }
-  .key-value { font-family: monospace; font-size: 0.85rem; word-break: break-all; background: #000; padding: 6px; border-radius: 4px; margin: 6px 0; }
-  .label { font-weight: bold; }
-  .plan-owner { color: #4caf50; }
-  small { color: #999; }
+  :root {
+    --bg: #0b0d12;
+    --card: #151822;
+    --card-border: #262b3a;
+    --accent: #6366f1;
+    --accent-hover: #4f52d9;
+    --text: #e8e9ee;
+    --text-dim: #8b8fa3;
+    --green: #22c55e;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-text { font-size: 1.15rem; font-weight: 700; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 16px;
+  }
+  .card p { color: var(--text-dim); font-size: 0.9rem; margin-top: 0; }
+  label { font-size: 0.8rem; color: var(--text-dim); display: block; margin-bottom: 6px; }
+  input {
+    width: 100%;
+    padding: 12px 14px;
+    background: #0e1017;
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 0.95rem;
+    margin-bottom: 14px;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: var(--accent-hover); }
+  button.secondary { background: transparent; border: 1px solid var(--card-border); color: var(--text-dim); }
+  button.danger { background: transparent; border: 1px solid var(--red); color: var(--red); padding: 6px 10px; width: auto; font-size: 0.8rem; }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .badge-owner { background: rgba(34,197,94,0.15); color: var(--green); }
+  .badge-free { background: rgba(139,143,163,0.15); color: var(--text-dim); }
+  .badge-plus, .badge-pro { background: rgba(99,102,241,0.15); color: var(--accent); }
+  .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .usage-bar { height: 6px; background: #0e1017; border-radius: 3px; overflow: hidden; margin: 12px 0 6px; }
+  .usage-fill { height: 100%; background: var(--accent); border-radius: 3px; }
+  .key-item {
+    background: #0e1017;
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .key-item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .key-name { font-weight: 600; font-size: 0.9rem; }
+  .key-value {
+    font-family: "SF Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    word-break: break-all;
+    background: #000;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .key-value:active { background: #1a1a1a; }
+  .hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 8px; }
+  .row-inline { display: flex; gap: 8px; }
+  .row-inline input { flex: 1; margin-bottom: 0; }
+  .row-inline button { width: auto; padding: 12px 16px; }
+  #app-section { display: none; }
+  a.link { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
 </style>
 </head>
 <body>
-  <h1>🔑 Mein Chatbot API Gateway</h1>
 
-  <div id="signup-section">
-    <p>Mit E-Mail registrieren, um deinen persönlichen API-Key zu bekommen:</p>
-    <input id="email-input" type="email" placeholder="deine-email@example.com">
-    <button onclick="signup()">Account anlegen</button>
-    <p><small>Schon registriert? <a href="#" onclick="showLookup(); return false;" style="color:#4a7dff;">Key erneut abrufen</a></small></p>
-    <div id="lookup-section" style="display:none;">
-      <input id="lookup-key-input" type="text" placeholder="Deinen API-Key hier einfügen">
-      <button onclick="lookup()">Status anzeigen</button>
-    </div>
+  <div class="logo">
+    <div class="logo-icon">🔑</div>
+    <div class="logo-text">Mein API Gateway</div>
   </div>
 
-  <div id="result-section" style="display:none;">
-    <div class="key-card">
-      <div class="label">E-Mail: <span id="res-email"></span></div>
-      <div class="label">Tarif: <span id="res-tier"></span></div>
-      <div class="key-value" id="res-key"></div>
-      <small id="res-usage"></small>
+  <div id="login-section" class="card">
+    <p>Melde dich mit deiner E-Mail an -- neue Adressen werden automatisch registriert.</p>
+    <label>E-Mail-Adresse</label>
+    <input id="email-input" type="email" placeholder="du@example.com">
+    <button onclick="login()">Anmelden</button>
+  </div>
+
+  <div id="app-section">
+
+    <div class="card">
+      <div class="header-row">
+        <span id="acc-email" style="font-weight:600;"></span>
+      </div>
+      <div id="usage-text" class="hint"></div>
     </div>
-    <p><small>⚠️ Speicher dir den Key jetzt -- er wird nicht nochmal angezeigt, wenn du ihn verlierst, brauchst du ihn zum erneuten Abrufen des Status.</small></p>
-    <button onclick="reset()" style="background:#444;">Zurück</button>
+
+    <div class="card">
+      <div class="header-row">
+        <span style="font-weight:600;">Deine API-Keys</span>
+      </div>
+      <div id="keys-list"></div>
+      <div class="row-inline" style="margin-top:12px;">
+        <input id="new-key-name" type="text" placeholder="Name, z. B. 'Mira Bot'">
+        <button onclick="addKey()">+ Key</button>
+      </div>
+    </div>
+
+    <button class="secondary" onclick="logout()">Abmelden</button>
   </div>
 
   <script>
-    async function signup() {
+    let currentEmail = null;
+
+    async function login() {
       const email = document.getElementById('email-input').value.trim().toLowerCase();
       if (!email) return;
       try {
-        const res = await fetch('/signup', {
+        const res = await fetch('/account/login', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({email})
         });
         const data = await res.json();
-        if (!res.ok) { alert(data.detail || 'Fehler beim Anlegen'); return; }
-        showResult(data.email, data.tier, data.api_key, `Tageslimit: ${data.daily_limit === null ? 'unbegrenzt' : data.daily_limit}`);
+        if (!res.ok) { alert(data.detail || 'Fehler beim Anmelden'); return; }
+        currentEmail = email;
+        renderAccount(data);
       } catch (e) {
         alert('Fehler: ' + e.message);
       }
     }
 
-    function showLookup() {
-      document.getElementById('lookup-section').style.display = 'block';
+    function renderAccount(data) {
+      document.getElementById('login-section').style.display = 'none';
+      document.getElementById('app-section').style.display = 'block';
+
+      document.getElementById('acc-email').textContent = data.email;
+      document.getElementById('usage-text').textContent = `${data.requests_used} Anfragen bisher gesamt`;
+
+      const list = document.getElementById('keys-list');
+      list.innerHTML = '';
+      if (data.keys.length === 0) {
+        list.innerHTML = '<p class="hint">Noch keine Keys -- leg dir unten einen an.</p>';
+      }
+      data.keys.forEach(k => {
+        const div = document.createElement('div');
+        div.className = 'key-item';
+        div.innerHTML = `
+          <div class="key-item-top">
+            <span class="key-name">${escapeHtml(k.name)}</span>
+            <button class="danger" onclick="removeKey('${k.api_key}')">Löschen</button>
+          </div>
+          <div class="key-value" onclick="copyKey(this)" data-key="${k.api_key}">${k.api_key}</div>
+        `;
+        list.appendChild(div);
+      });
     }
 
-    async function lookup() {
-      const key = document.getElementById('lookup-key-input').value.trim();
-      if (!key) return;
+    async function addKey() {
+      const name = document.getElementById('new-key-name').value.trim() || 'Key';
       try {
-        const res = await fetch('/me', {
-          headers: {'X-API-Key': key}
+        const res = await fetch('/account/keys/create', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({email: currentEmail, name})
         });
         const data = await res.json();
-        if (!res.ok) { alert(data.detail || 'Key ungültig'); return; }
-        showResult(data.email, data.tier, key, `${data.requests_used} genutzt, ${data.remaining === null ? 'unbegrenzt' : data.remaining + ' übrig'} heute`);
+        if (!res.ok) { alert(data.detail || 'Fehler beim Anlegen'); return; }
+        document.getElementById('new-key-name').value = '';
+        await refresh();
       } catch (e) {
         alert('Fehler: ' + e.message);
       }
     }
 
-    function showResult(email, tier, key, usageText) {
-      document.getElementById('signup-section').style.display = 'none';
-      document.getElementById('result-section').style.display = 'block';
-      document.getElementById('res-email').textContent = email;
-      document.getElementById('res-tier').textContent = tier;
-      document.getElementById('res-tier').className = tier === 'owner' ? 'plan-owner' : '';
-      document.getElementById('res-key').textContent = key;
-      document.getElementById('res-usage').textContent = usageText;
+    async function removeKey(apiKey) {
+      if (!confirm('Diesen Key wirklich löschen?')) return;
+      try {
+        await fetch('/account/keys/delete', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({email: currentEmail, api_key: apiKey})
+        });
+        await refresh();
+      } catch (e) {
+        alert('Fehler: ' + e.message);
+      }
     }
 
-    function reset() {
-      document.getElementById('signup-section').style.display = 'block';
-      document.getElementById('result-section').style.display = 'none';
+    async function refresh() {
+      const res = await fetch('/account/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: currentEmail})
+      });
+      const data = await res.json();
+      renderAccount(data);
+    }
+
+    function copyKey(el) {
+      const key = el.dataset.key;
+      navigator.clipboard?.writeText(key);
+      const old = el.textContent;
+      el.textContent = 'Kopiert!';
+      setTimeout(() => el.textContent = old, 1000);
+    }
+
+    function logout() {
+      currentEmail = null;
+      document.getElementById('login-section').style.display = 'block';
+      document.getElementById('app-section').style.display = 'none';
       document.getElementById('email-input').value = '';
-      document.getElementById('lookup-key-input').value = '';
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
     }
   </script>
 </body>
