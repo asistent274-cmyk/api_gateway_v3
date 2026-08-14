@@ -1,4 +1,5 @@
 import os
+import asyncio
 import httpx
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -12,6 +13,28 @@ from database import (
 
 app = FastAPI(title="Mein Chatbot API Gateway")
 
+KEEP_ALIVE_INTERVAL = 15  # Sekunden
+
+
+async def _keep_ollama_warm():
+    """
+    Laeuft dauerhaft im Hintergrund und stupst Ollama alle 15 Sekunden an,
+    damit das Modell nicht aus dem Speicher entladen wird (Standard: Ollama
+    entlaedt nach 5 Min. Inaktivitaet, was die naechste echte Anfrage verlangsamt).
+    """
+    ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+    ollama_model = os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        while True:
+            try:
+                await client.post(
+                    f"{ollama_url}/api/generate",
+                    json={"model": ollama_model, "prompt": "", "keep_alive": "10m"},
+                )
+            except Exception:
+                pass  # Ollama evtl. noch nicht bereit -- naechster Versuch in 15s
+            await asyncio.sleep(KEEP_ALIVE_INTERVAL)
+
 
 @app.on_event("startup")
 def startup():
@@ -21,6 +44,7 @@ def startup():
         get_or_create_account(owner_email)
         if not list_keys(owner_email):
             create_key(owner_email, "Owner-Key")
+    asyncio.create_task(_keep_ollama_warm())
 
 
 # --- Schemas ---
